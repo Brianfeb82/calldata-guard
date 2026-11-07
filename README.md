@@ -37,14 +37,25 @@ Because signers cannot decode the binary ABI parameters offline, they approve tr
 
 ---
 
-## Installation
+## Installation & Single-File Portable Binary
 
+### Option 1: Run the Standalone Binary (Recommended)
+You do not need to install Python packages or clone repositories. A standalone 31 KB binary is compiled directly with Python's built-in `zipapp`:
+
+```bash
+# Build binary locally in 1 second:
+python3 build_binary.py
+
+# Run directly:
+./dist/calldata-guard "0x095ea7b3..."
+```
+
+### Option 2: Clone & Run Module
 ```bash
 git clone https://github.com/Brianfeb82/calldata-guard.git
 cd calldata-guard
+python3 -m calldata_guard.cli "0x095ea7b3..."
 ```
-
-No package manager or virtual environment is required.
 
 ---
 
