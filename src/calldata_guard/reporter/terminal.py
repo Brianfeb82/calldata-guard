@@ -42,33 +42,52 @@ def render_report(
     print(c(_BOLD, "calldata-guard: Offline Transaction Pre-Flight Audit"), file=stream)
     print("-" * 65, file=stream)
 
-    # Transaction Meta
     tx_type = tx_meta.get("type", "direct_calldata")
-    to_addr = tx_meta.get("to") or "Contract Deployment / Direct"
-    val = tx_meta.get("value", 0)
 
-    print(f"Transaction Envelope: {tx_type.upper()}", file=stream)
-    print(f"Target Contract (To):  {to_addr}", file=stream)
-    print(f"Native Value (ETH):    {val} Wei", file=stream)
-    print(file=stream)
+    # Handle EIP-712 render
+    if tx_type == "eip712":
+        domain = tx_meta.get("domain", {})
+        print(f"Signature Standard:    EIP-712 Typed Structured Message", file=stream)
+        print(f"Domain Name:           {domain.get('name', 'N/A')}", file=stream)
+        print(f"Verifying Contract:    {domain.get('verifyingContract', 'None')}", file=stream)
+        print(f"Chain ID:              {domain.get('chainId', 'N/A')}", file=stream)
+        print(file=stream)
 
-    # Decoded Calldata Intent
-    func_name = decoded_call.get("name", "Unknown")
-    selector = decoded_call.get("selector", "0x")
-    standard = decoded_call.get("standard", "Custom")
-
-    print(c(_BOLD, f"Decoded Function Call: {func_name}() [{standard}]"), file=stream)
-    print(f"Selector:              {selector}", file=stream)
-
-    params = decoded_call.get("params", {})
-    if params:
-        print("Parameters:", file=stream)
-        for k, v in params.items():
-            print(f"  - {k:<12} = {v}", file=stream)
+        p_type = decoded_call.get("name", "Unknown")
+        print(c(_BOLD, f"Primary Type:          {p_type}"), file=stream)
+        params = decoded_call.get("params", {})
+        if params:
+            print("Message Fields:", file=stream)
+            for k, v in params.items():
+                print(f"  - {k:<16} = {v}", file=stream)
+        print(file=stream)
     else:
-        print("Parameters:            None / Raw Bytecode", file=stream)
+        # Standard On-Chain Transaction Meta
+        to_addr = tx_meta.get("to") or "Contract Deployment / Direct"
+        val = tx_meta.get("value", 0)
 
-    print(file=stream)
+        print(f"Transaction Envelope: {tx_type.upper()}", file=stream)
+        print(f"Target Contract (To):  {to_addr}", file=stream)
+        print(f"Native Value (ETH):    {val} Wei", file=stream)
+        print(file=stream)
+
+        # Decoded Calldata Intent
+        func_name = decoded_call.get("name", "Unknown")
+        selector = decoded_call.get("selector", "0x")
+        standard = decoded_call.get("standard", "Custom")
+
+        print(c(_BOLD, f"Decoded Function Call: {func_name}() [{standard}]"), file=stream)
+        print(f"Selector:              {selector}", file=stream)
+
+        params = decoded_call.get("params", {})
+        if params:
+            print("Parameters:", file=stream)
+            for k, v in params.items():
+                print(f"  - {k:<12} = {v}", file=stream)
+        else:
+            print("Parameters:            None / Raw Bytecode", file=stream)
+
+        print(file=stream)
 
     # Risk Assessment Findings
     if findings:

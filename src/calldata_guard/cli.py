@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from .analyzer.eip712 import audit_eip712_message, parse_eip712_json
 from .analyzer.rules import analyze_transaction
 from .decoder.abi import decode_abi_calldata
 from .decoder.rlp import RLPDecodeError, parse_raw_transaction
@@ -59,6 +60,28 @@ def audit_payload(payload_bytes: bytes) -> int:
     return 0
 
 
+def audit_eip712_text(json_str: str) -> int:
+    payload = parse_eip712_json(json_str)
+    findings = audit_eip712_message(payload)
+
+    tx_meta = {
+        "type": "eip712",
+        "domain": payload.domain,
+    }
+    decoded_call = {
+        "name": payload.primary_type,
+        "standard": "EIP-712",
+        "params": payload.message,
+    }
+
+    render_report(tx_meta, decoded_call, findings)
+
+    has_crit_or_high = any(f.severity in ("CRITICAL", "HIGH") for f in findings)
+    if has_crit_or_high:
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="calldata-guard",
@@ -67,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "payload",
         nargs="?",
-        help="Raw hex string of the transaction or calldata (e.g. 0x095ea7b3...). Reads stdin if omitted.",
+        help="Raw hex string or EIP-712 JSON string. Reads stdin if omitted.",
     )
 
     args = parser.parse_args(argv)
@@ -83,6 +106,15 @@ def main(argv: list[str] | None = None) -> int:
     if not raw_input:
         sys.stderr.write("Error: empty transaction payload\n")
         return 2
+
+    # Check if input is JSON (EIP-712 structured data)
+    stripped = raw_input.strip()
+    if (stripped.startswith("{") and stripped.endswith("}")) or ("primaryType" in stripped and "domain" in stripped):
+        try:
+            return audit_eip712_text(stripped)
+        except ValueError as e:
+            sys.stderr.write(f"Error parsing EIP-712 JSON: {e}\n")
+            return 2
 
     try:
         payload_bytes = clean_hex_string(raw_input)

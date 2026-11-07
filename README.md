@@ -83,7 +83,52 @@ FAILED: DANGEROUS TRANSACTION DETECTED
 echo "0xa9059cbb000000000000000000000000111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000000003e8" | python3 -m calldata_guard.cli
 ```
 
-### 3. POSIX Exit Codes
+### 3. Audit EIP-712 Typed Signatures (Uniswap Permit2 & Seaport Orders)
+```bash
+python3 -m calldata_guard.cli '{
+  "types": {
+    "PermitSingle": [{"name": "details", "type": "PermitDetails"}]
+  },
+  "primaryType": "PermitSingle",
+  "domain": {
+    "name": "Permit2",
+    "chainId": 1,
+    "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "message": {
+    "details": {
+      "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "amount": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+    },
+    "spender": "0xPhishingDrainerAddress"
+  }
+}'
+```
+
+Output:
+```text
+-----------------------------------------------------------------
+calldata-guard: Offline Transaction Pre-Flight Audit
+-----------------------------------------------------------------
+Signature Standard:    EIP-712 Typed Structured Message
+Domain Name:           Permit2
+Verifying Contract:    0x000000000022D473030F116dDEE9F6B43aC78BA3
+Chain ID:              1
+
+Primary Type:          PermitSingle
+Message Fields:
+  - details          = {'token': '0xdAC17F958D2ee523a2206206994597C13D831ec7', 'amount': '115792089237316195423570985008687907853269984665640564039457584007913129639935'}
+  - spender          = 0xPhishingDrainerAddress
+
+FAILED: DANGEROUS TRANSACTION DETECTED
+-----------------------------------------------------------------
+[CRITICAL] EIP712_PERMIT2_UNLIMITED_DRAINER
+    Impact:    EIP-712 Permit2 authorizes infinite (2^256 - 1) token allowance to spender 0xPhishingDrainerAddress on token 0xdAC17F958D2ee523a2206206994597C13D831ec7. Off-chain signature can be replayed to empty balance.
+    Trigger:   details.amount = type(uint256).max
+-----------------------------------------------------------------
+```
+
+### 4. POSIX Exit Codes
 
 - `0`: Clean transaction (e.g. standard fixed token transfer).
 - `1`: High or Critical risk violation found (unlimited approvals, permit traps).

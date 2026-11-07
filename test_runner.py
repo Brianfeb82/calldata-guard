@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from calldata_guard.decoder.rlp import decode_rlp, parse_raw_transaction
 from calldata_guard.decoder.abi import decode_abi_calldata
+from calldata_guard.analyzer.eip712 import parse_eip712_json, audit_eip712_message
 from calldata_guard.analyzer.rules import analyze_transaction, MAX_UINT256
 from calldata_guard.cli import clean_hex_string, audit_payload
 
@@ -162,6 +163,63 @@ def test_unknown_bytecode():
     test("Flags UNKNOWN_FUNCTION_SELECTOR", "UNKNOWN_FUNCTION_SELECTOR" in rules)
 
 
+# --- 8. EIP-712 Structured Data Audits ---
+
+def test_eip712_permit2_drainer():
+    print("\n--- 8. EIP-712 Permit2 & Seaport Audits ---")
+    permit2_json = '''
+    {
+      "types": {
+        "EIP712Domain": [{"name": "name", "type": "string"}],
+        "PermitSingle": [{"name": "details", "type": "PermitDetails"}]
+      },
+      "primaryType": "PermitSingle",
+      "domain": {
+        "name": "Permit2",
+        "chainId": 1,
+        "verifyingContract": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+      },
+      "message": {
+        "details": {
+          "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          "amount": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+          "expiration": "1735689600",
+          "nonce": "0"
+        },
+        "spender": "0xPhishingDrainerAddress",
+        "sigDeadline": "1735689600"
+      }
+    }
+    '''
+    payload = parse_eip712_json(permit2_json)
+    findings = audit_eip712_message(payload)
+    rules = [f.rule for f in findings]
+    test("Flags EIP712_PERMIT2_UNLIMITED_DRAINER", "EIP712_PERMIT2_UNLIMITED_DRAINER" in rules)
+    crit = [f for f in findings if f.rule == "EIP712_PERMIT2_UNLIMITED_DRAINER"][0]
+    test("Severity is CRITICAL", crit.severity == "CRITICAL")
+
+    # Seaport Zero Consideration Drain Order
+    seaport_gift_order = '''
+    {
+      "types": {"OrderComponents": [{"name": "offer", "type": "OfferItem[]"}]},
+      "primaryType": "OrderComponents",
+      "domain": {
+        "name": "Seaport",
+        "chainId": 1,
+        "verifyingContract": "0x00000000000000ADc04C56Bf30aC9d3c0aAF14dC"
+      },
+      "message": {
+        "offer": [{"itemType": 2, "token": "0xNFT", "identifierOrCriteria": "42"}],
+        "consideration": []
+      }
+    }
+    '''
+    payload_seaport = parse_eip712_json(seaport_gift_order)
+    findings_seaport = audit_eip712_message(payload_seaport)
+    rules_seaport = [f.rule for f in findings_seaport]
+    test("Flags EIP712_ZERO_CONSIDERATION_TRANSFER", "EIP712_ZERO_CONSIDERATION_TRANSFER" in rules_seaport)
+
+
 def main():
     print("calldata-guard test suite")
     print("=" * 60)
@@ -173,6 +231,7 @@ def main():
     test_value_mismatch()
     test_rlp_parser()
     test_unknown_bytecode()
+    test_eip712_permit2_drainer()
 
     print("\n" + "=" * 60)
     print(f"Results: {passed} passed, {failed} failed")
